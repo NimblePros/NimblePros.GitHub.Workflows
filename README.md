@@ -37,4 +37,4 @@ Some things to note:
       code-coverage-artifact-path: YOUR_CODE_COVERAGE_ARTIFACT_PATH
 ```
 
-You can see this in action with [eShopOnNServiceBus](https://github.com/NimblePros/eShopOnNServiceBus/blob/2012fe78bfbb28fca96609d25176d4cbe0e209ad/.github/workflows/dotnetcore.yml#L57-L63).
+You can see this in action with [eShopOnNServiceBus](https://github.com/NimblePros/eShopOnNServiceBus/blob/main/.github/workflows/comment-on-pr.yml).
