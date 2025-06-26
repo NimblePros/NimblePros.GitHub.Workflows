@@ -21,51 +21,20 @@ This Pull Request will publish a Code Coverage comment to a PR, as seen in [this
 Some things to note:
 
 - This only comments on a `pull_request` event.
-- This is highly dependent on the presence of two artifacts: `pr-number` and `code-coverage-results`.
+- This requires 3 parameters:
+  - **pr-number**: PR Number to comment on
+  - **code-coverage-artifact-name**: Used for downloading hte code-coverage artifact created in a build pipeline
+  - **code-coverage-artifact-path**: Used for the commenter plugin
 
-This is the code in our build pipeline for generating the `pr-number` artifact:
-
-```yaml
-    - name: Save the PR number in an artifact
-      if: github.event_name == 'pull_request' && (success() || failure()) 
-      shell: bash
-      env:
-        PR_NUMBER: ${{ github.event.number }}
-      run: echo $PR_NUMBER > pr-number.txt
-  
-    - name: Upload the PR number
-      uses: actions/upload-artifact@v4
-      if: github.event_name == 'pull_request' &&  (success() || failure())
-      with:
-        name: pr-number
-        path: ./pr-number.txt
-        retention-days: 1
- ```
-
-This is the code in our build pipeline for generating the `code-coverage-results` artifact:
+  To use this in your own repo, add this job to your workflow:
 
 ```yaml
-# See https://josh-ops.com/posts/github-code-coverage/
-# Add coverlet.collector nuget package to test project - 'dotnet add <TestProject.cspoj> package coverlet
-- name: Test with dotnet
-    run: dotnet test ./YOUR_SOLUTION_NAME.sln --no-restore --verbosity normal --collect:"XPlat Code Coverage" --logger trx --results-directory coverage
-    
-- name: Copy Coverage To Predictable Location
-    run: find coverage -type f -name coverage.cobertura.xml -exec cp -p {} coverage/coverage.cobertura.xml \;
-    
-- name: Code Coverage Summary Report
-    uses: irongut/CodeCoverageSummary@v1.3.0
+  add-code-coverage-to-pr:
+    uses: NimblePros/NimblePros.GitHub.Workflows/.github/workflows/comment-on-pr.yml@main
     with:
-    filename: coverage/coverage.cobertura.xml
-    badge: true
-    format: 'markdown'
-    output: 'both'
-
-- name: Upload code coverage results artifact
-    uses: actions/upload-artifact@v4
-    if: success() || failure()
-    with:
-    name: code-coverage-results
-    path: code-coverage-results.md
-    retention-days: 1
+      pr-number: YOUR_PR_NUMBER
+      code-coverage-artifact-name: YOUR_CODE_COVERAGE_ARTIFACT_NAME
+      code-coverage-artifact-path: YOUR_CODE_COVERAGE_ARTIFACT_PATH
 ```
+
+You can see this in action with [eShopOnNServiceBus](https://github.com/NimblePros/eShopOnNServiceBus/blob/2012fe78bfbb28fca96609d25176d4cbe0e209ad/.github/workflows/dotnetcore.yml#L57-L63).
