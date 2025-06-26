@@ -6,6 +6,12 @@ on:
       pr-number:
         required: true
         type: string
+      code-coverage-artifact-name:
+        required: true
+        type: string
+      code-coverage-artifact-path:
+        required: true
+        type: string
 
 jobs:
   comment:
@@ -20,11 +26,11 @@ jobs:
       with:
         workflow: ${{ github.event.workflow_run.workflow_id }}
         workflow_conclusion: ""
-        name: code-coverage-results
+        name: ${{ inputs.code-coverage-artifact-name }}
 
     - name: Add Coverage PR Comment
       uses: marocchino/sticky-pull-request-comment@v2
       with:
         number: ${{ inputs.pr-number }}
         recreate: true
-        path: code-coverage-results.md
+        path: ${{ inputs.code-coverage-artifact-path }}
