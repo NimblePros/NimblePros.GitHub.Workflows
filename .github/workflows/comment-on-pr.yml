@@ -20,10 +20,16 @@ jobs:
   debug-output:
     runs-on: ubuntu-latest
     steps:
-      - run: "echo ${{ inputs.event-triggered }}"
-      - run: "echo ${{ inputs.pr-number }}"
-      - run: "echo ${{ inputs.code-coverage-artifact-name }}"
-      - run: "echo ${{ inputs.code-coverage-artifact-path }}"
+      - name: Workflow event
+        run: "echo ${{ github.event_name }}"
+      - name: Triggering event name
+        run: "echo ${{ inputs.event-triggered }}"
+      - name: PR number
+        run: "echo ${{ inputs.pr-number }}"
+      - name: Code Coverage Artifact Name
+        run: "echo ${{ inputs.code-coverage-artifact-name }}"        
+      - name: Code Coverage Artifact Path
+        run: "echo ${{ inputs.code-coverage-artifact-path }}"
   
   comment:
     runs-on: ubuntu-latest
