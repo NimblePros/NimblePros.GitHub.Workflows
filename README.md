@@ -44,28 +44,28 @@ This is the code in our build pipeline for generating the `pr-number` artifact:
 
 This is the code in our build pipeline for generating the `code-coverage-results` artifact:
 
-    ```yaml
-          # See https://josh-ops.com/posts/github-code-coverage/
-      # Add coverlet.collector nuget package to test project - 'dotnet add <TestProject.cspoj> package coverlet
-    - name: Test with dotnet
-      run: dotnet test ./YOUR_SOLUTION_NAME.sln --no-restore --verbosity normal --collect:"XPlat Code Coverage" --logger trx --results-directory coverage
-      
-    - name: Copy Coverage To Predictable Location
-      run: find coverage -type f -name coverage.cobertura.xml -exec cp -p {} coverage/coverage.cobertura.xml \;
-      
-    - name: Code Coverage Summary Report
-      uses: irongut/CodeCoverageSummary@v1.3.0
-      with:
-        filename: coverage/coverage.cobertura.xml
-        badge: true
-        format: 'markdown'
-        output: 'both'
+```yaml
+        # See https://josh-ops.com/posts/github-code-coverage/
+    # Add coverlet.collector nuget package to test project - 'dotnet add <TestProject.cspoj> package coverlet
+- name: Test with dotnet
+    run: dotnet test ./YOUR_SOLUTION_NAME.sln --no-restore --verbosity normal --collect:"XPlat Code Coverage" --logger trx --results-directory coverage
+    
+- name: Copy Coverage To Predictable Location
+    run: find coverage -type f -name coverage.cobertura.xml -exec cp -p {} coverage/coverage.cobertura.xml \;
+    
+- name: Code Coverage Summary Report
+    uses: irongut/CodeCoverageSummary@v1.3.0
+    with:
+    filename: coverage/coverage.cobertura.xml
+    badge: true
+    format: 'markdown'
+    output: 'both'
 
-    - name: Upload code coverage results artifact
-      uses: actions/upload-artifact@v4
-      if: success() || failure()
-      with:
-        name: code-coverage-results
-        path: code-coverage-results.md
-        retention-days: 1
-    ```
+- name: Upload code coverage results artifact
+    uses: actions/upload-artifact@v4
+    if: success() || failure()
+    with:
+    name: code-coverage-results
+    path: code-coverage-results.md
+    retention-days: 1
+```
