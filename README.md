@@ -36,9 +36,9 @@ This is the code in our build pipeline for generating the `pr-number` artifact:
         name: pr-number
         path: ./pr-number.txt
         retention-days: 1
-    ```
+ ```
 
-    This is the code in our build pipeline for generating the `code-coverage-results` artifact:
+This is the code in our build pipeline for generating the `code-coverage-results` artifact:
 
     ```yaml
           # See https://josh-ops.com/posts/github-code-coverage/
