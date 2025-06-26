@@ -14,6 +14,12 @@ on:
         type: string
 
 jobs:
+  debug-output:
+    steps:
+      - run: echo ${{ github.event.workflow_run.event }}
+      - run: "echo ${{ inputs.pr-number }}"
+      - run: "echo ${{ inputs.code-coverage-artifact-name }}"
+      - run: "echo ${{ inputs.code-coverage-artifact-path }}"
   comment:
     runs-on: ubuntu-latest
 
