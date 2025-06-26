@@ -10,6 +10,8 @@ In this section, we'll mention workflows and any details required for using them
 
 - [Comment on Pull Request](#comment-on-pull-request)
 
+---
+
 ### Comment On Pull Request
 
 - [Comment on Pull Request workflow](https://github.com/NimblePros/NimblePros.GitHub.Workflows/blob/main/.github/workflows/comment-on-pr.yml)
