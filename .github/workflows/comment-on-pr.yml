@@ -15,6 +15,7 @@ on:
 
 jobs:
   debug-output:
+    runs-on: ubuntu-latest
     steps:
       - run: echo ${{ github.event.workflow_run.event }}
       - run: "echo ${{ inputs.pr-number }}"
