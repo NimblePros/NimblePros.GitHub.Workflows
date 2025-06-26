@@ -12,9 +12,6 @@ on:
       code-coverage-artifact-path:
         required: true
         type: string
-      event-triggered:
-        required: true
-        type: string
 
 jobs:
   comment:
