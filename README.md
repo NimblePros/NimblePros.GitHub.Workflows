@@ -45,8 +45,8 @@ This is the code in our build pipeline for generating the `pr-number` artifact:
 This is the code in our build pipeline for generating the `code-coverage-results` artifact:
 
 ```yaml
-        # See https://josh-ops.com/posts/github-code-coverage/
-    # Add coverlet.collector nuget package to test project - 'dotnet add <TestProject.cspoj> package coverlet
+# See https://josh-ops.com/posts/github-code-coverage/
+# Add coverlet.collector nuget package to test project - 'dotnet add <TestProject.cspoj> package coverlet
 - name: Test with dotnet
     run: dotnet test ./YOUR_SOLUTION_NAME.sln --no-restore --verbosity normal --collect:"XPlat Code Coverage" --logger trx --results-directory coverage
     
