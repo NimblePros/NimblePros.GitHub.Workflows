@@ -17,25 +17,11 @@ on:
         type: string
 
 jobs:
-  debug-output:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Workflow event
-        run: "echo ${{ github.event_name }}"
-      - name: Triggering event name
-        run: "echo ${{ inputs.event-triggered }}"
-      - name: PR number
-        run: "echo ${{ inputs.pr-number }}"
-      - name: Code Coverage Artifact Name
-        run: "echo ${{ inputs.code-coverage-artifact-name }}"        
-      - name: Code Coverage Artifact Path
-        run: "echo ${{ inputs.code-coverage-artifact-path }}"
-  
   comment:
     runs-on: ubuntu-latest
 
     # Only comment on the PR if this is a PR event
-    if: ${{ inputs.event_triggered }} == 'pull_request'
+    if: ${{ github.event_name }} == 'pull_request'
 
     steps:   
     - name: Get the code coverage results file
