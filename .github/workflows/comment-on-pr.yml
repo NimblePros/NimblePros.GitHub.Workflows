@@ -1,5 +1,10 @@
 name: Comment on the Pull Request
 
+on:
+  workflow_run:
+    types:
+      - completed
+
 jobs:
   comment:
     runs-on: ubuntu-latest
