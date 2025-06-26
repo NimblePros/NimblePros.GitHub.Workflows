@@ -2,6 +2,7 @@ name: Comment on the Pull Request
 
 on:
   workflow_run:
+    workflows: ["eShopOnWeb Build and Test"]
     types:
       - completed
 
