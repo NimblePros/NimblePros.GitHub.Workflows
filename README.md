@@ -23,7 +23,7 @@ Some things to note:
 - This only comments on a `pull_request` event.
 - This requires 3 parameters:
   - **pr-number**: PR Number to comment on
-  - **code-coverage-artifact-name**: Used for downloading hte code-coverage artifact created in a build pipeline
+  - **code-coverage-artifact-name**: Used for downloading the code-coverage artifact created in a build pipeline
   - **code-coverage-artifact-path**: Used for the commenter plugin
 
   To use this in your own repo, add this job to your workflow:
