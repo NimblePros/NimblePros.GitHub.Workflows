@@ -1,0 +1,153 @@
+# REQUIRED REPOSITORY SETTING:
+#   Settings → Actions → General → Access
+#   Set to "Accessible from repositories in the NimblePros organization"
+#   (or "Accessible from any repository" if callers are outside the org)
+#
+# CALLER EXAMPLE:
+#
+#   jobs:
+#     apicompat:
+#       permissions:
+#         contents: read
+#         pull-requests: write
+#       uses: NimblePros/NimblePros.GitHub.Workflows/.github/workflows/apicompat.yml@main
+#       with:
+#         package_id: Ardalis.GuardClauses
+#         project_path: ./src/GuardClauses/GuardClauses.csproj
+#         # dotnet_version is optional; defaults to 10.0.x
+#         # dotnet_version: '9.0.x'
+#       secrets:
+#         github_token: ${{ secrets.GITHUB_TOKEN }}
+#
+# NOTE: Permissions cannot be declared in this reusable workflow — they must
+# be declared on the calling job. The github_token secret must be the caller's
+# GITHUB_TOKEN (or a PAT with contents:read and pull-requests:write).
+
+name: API Compatibility
+
+on:
+  workflow_call:
+    inputs:
+      # NuGet package ID, e.g. Ardalis.GuardClauses
+      package_id:
+        required: true
+        type: string
+      # Relative path to the .csproj to pack, e.g. ./src/MyLib/MyLib.csproj
+      project_path:
+        required: true
+        type: string
+      # .NET SDK version to use; defaults to 10.0.x
+      dotnet_version:
+        required: false
+        type: string
+        default: '10.0.x'
+    secrets:
+      # Pass ${{ secrets.GITHUB_TOKEN }} from the caller.
+      # Needs contents:read and pull-requests:write on the calling repo.
+      github_token:
+        required: true
+
+jobs:
+  apicompat:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checks out the CALLER'S repository, not this reusable workflow's repo.
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ inputs.dotnet_version }}
+
+      # jq is pre-installed on ubuntu-latest; this ensures it is present explicitly.
+      - name: Install jq
+        run: sudo apt-get install -y jq
+
+      - name: Get latest stable package version
+        id: latest
+        shell: bash
+        env:
+          PACKAGE_ID: ${{ inputs.package_id }}
+        run: |
+          PACKAGE_ID_LOWER=$(echo "$PACKAGE_ID" | tr '[:upper:]' '[:lower:]')
+
+          # NuGet flat-container returns versions in ascending order; tail -n 1 is the latest stable.
+          VERSION=$(curl -s "https://api.nuget.org/v3-flatcontainer/$PACKAGE_ID_LOWER/index.json" \
+            | jq -r '.versions[] | select(test("-") | not)' \
+            | tail -n 1)
+
+          if [ -z "$VERSION" ]; then
+            echo "Could not determine latest stable version of $PACKAGE_ID" >&2
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Pack with package validation
+        id: apicompat
+        continue-on-error: true
+        shell: bash
+        env:
+          PROJECT_PATH: ${{ inputs.project_path }}
+          BASELINE_VERSION: ${{ steps.latest.outputs.version }}
+        run: |
+          set +e
+
+          dotnet pack "$PROJECT_PATH" \
+            -c Release \
+            /p:EnablePackageValidation=true \
+            "/p:PackageValidationBaselineVersion=$BASELINE_VERSION" \
+            > apicompat.log 2>&1
+
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Post PR comment
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request' || github.event.pull_request != null
+        env:
+          APICOMPAT_EXIT_CODE: ${{ steps.apicompat.outputs.exit_code }}
+          BASELINE_VERSION: ${{ steps.latest.outputs.version }}
+        with:
+          # Use the caller's token so comments are posted on the caller's PR.
+          github-token: ${{ secrets.github_token }}
+          script: |
+            const fs = require('fs');
+            const log = fs.readFileSync('apicompat.log', 'utf8');
+            const exitCode = process.env.APICOMPAT_EXIT_CODE;
+            const baselineVersion = process.env.BASELINE_VERSION;
+            const compatible = exitCode === '0';
+
+            if (!context.issue || !context.issue.number) {
+              core.info('Not running in a pull request context; skipping PR comment.');
+              return;
+            }
+
+            const body = compatible
+              ? `✅ No API breaking changes detected against \`${baselineVersion}\`.`
+              : `⚠️ **Breaking API changes detected** against \`${baselineVersion}\`.\n\n<details><summary>Pack output</summary>\n\n\`\`\`\n${log}\n\`\`\`\n</details>`;
+
+            // Find and update an existing bot comment rather than posting a new one each push.
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const marker = '<!-- apicompat -->';
+            const existing = comments.find(c => c.user.type === 'Bot' && c.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: `${marker}\n${body}`,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: `${marker}\n${body}`,
+              });
+            }
