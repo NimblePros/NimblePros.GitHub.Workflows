@@ -83,6 +83,12 @@ jobs:
 
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
+      - name: Build
+        shell: bash
+        env:
+          PROJECT_PATH: ${{ inputs.project_path }}
+        run: dotnet build "$PROJECT_PATH" -c Release
+
       - name: Pack with package validation
         id: apicompat
         continue-on-error: true
@@ -95,6 +101,7 @@ jobs:
 
           dotnet pack "$PROJECT_PATH" \
             -c Release \
+            --no-build \
             /p:EnablePackageValidation=true \
             "/p:PackageValidationBaselineVersion=$BASELINE_VERSION" \
             > apicompat.log 2>&1
