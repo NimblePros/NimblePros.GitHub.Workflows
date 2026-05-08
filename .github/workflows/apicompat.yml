@@ -17,10 +17,10 @@
 #         # dotnet_version is optional; defaults to 10.0.x
 #         # dotnet_version: '9.0.x'
 #       secrets:
-#         github_token: ${{ secrets.GITHUB_TOKEN }}
+#         apicompat_token: ${{ secrets.GITHUB_TOKEN }}
 #
 # NOTE: Permissions cannot be declared in this reusable workflow — they must
-# be declared on the calling job. The github_token secret must be the caller's
+# be declared on the calling job. The apicompat_token secret must be the caller's
 # GITHUB_TOKEN (or a PAT with contents:read and pull-requests:write).
 
 name: API Compatibility
@@ -44,7 +44,7 @@ on:
     secrets:
       # Pass ${{ secrets.GITHUB_TOKEN }} from the caller.
       # Needs contents:read and pull-requests:write on the calling repo.
-      github_token:
+      apicompat_token:
         required: true
 
 jobs:
@@ -109,7 +109,7 @@ jobs:
           BASELINE_VERSION: ${{ steps.latest.outputs.version }}
         with:
           # Use the caller's token so comments are posted on the caller's PR.
-          github-token: ${{ secrets.github_token }}
+          github-token: ${{ secrets.apicompat_token }}
           script: |
             const fs = require('fs');
             const log = fs.readFileSync('apicompat.log', 'utf8');
