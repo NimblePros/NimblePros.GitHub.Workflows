@@ -122,10 +122,10 @@ jobs:
               return;
             }
 
-            // Extract lines with CP#### diagnostic codes (the actual breaking change details)
+            // Capture all MSBuild error lines (covers CP#### API compat AND NU#### pack errors)
             const breakingLines = log
               .split('\n')
-              .filter(l => /\bCP\d{4}\b/.test(l))
+              .filter(l => /: error (CP|NU|PK)\d{4}\b/.test(l))
               .map(l => l.trim())
               .filter(Boolean);
 
