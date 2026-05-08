@@ -122,9 +122,20 @@ jobs:
               return;
             }
 
+            // Extract lines with CP#### diagnostic codes (the actual breaking change details)
+            const breakingLines = log
+              .split('\n')
+              .filter(l => /\bCP\d{4}\b/.test(l))
+              .map(l => l.trim())
+              .filter(Boolean);
+
+            const breakingList = breakingLines.length > 0
+              ? `\n\n**Breaking changes:**\n${breakingLines.map(l => `- \`${l}\``).join('\n')}`
+              : '';
+
             const body = compatible
               ? `✅ No API breaking changes detected against \`${baselineVersion}\`.`
-              : `⚠️ **Breaking API changes detected** against \`${baselineVersion}\`.\n\n<details><summary>Pack output</summary>\n\n\`\`\`\n${log}\n\`\`\`\n</details>`;
+              : `⚠️ **Breaking API changes detected** against \`${baselineVersion}\`.${breakingList}\n\n<details><summary>Full pack output</summary>\n\n\`\`\`\n${log}\n\`\`\`\n</details>`;
 
             // Find and update an existing bot comment rather than posting a new one each push.
             const { data: comments } = await github.rest.issues.listComments({
