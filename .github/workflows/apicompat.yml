@@ -53,9 +53,9 @@ jobs:
 
     steps:
       # Checks out the CALLER'S repository, not this reusable workflow's repo.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: ${{ inputs.dotnet_version }}
 
@@ -102,7 +102,7 @@ jobs:
           echo "exit_code=$?" >> "$GITHUB_OUTPUT"
 
       - name: Post PR comment
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         if: github.event_name == 'pull_request' || github.event.pull_request != null
         env:
           APICOMPAT_EXIT_CODE: ${{ steps.apicompat.outputs.exit_code }}
