@@ -89,6 +89,16 @@ jobs:
           PROJECT_PATH: ${{ inputs.project_path }}
         run: dotnet build "$PROJECT_PATH" -c Release
 
+      - name: Restore (ensure baseline package is available for APICompat)
+        shell: bash
+        env:
+          PROJECT_PATH: ${{ inputs.project_path }}
+          BASELINE_VERSION: ${{ steps.latest.outputs.version }}
+        run: |
+          dotnet restore "$PROJECT_PATH" \
+            /p:EnablePackageValidation=true \
+            "/p:PackageValidationBaselineVersion=$BASELINE_VERSION"
+
       - name: Pack with package validation
         id: apicompat
         continue-on-error: true
