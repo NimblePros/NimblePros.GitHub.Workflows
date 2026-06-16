@@ -1,0 +1,161 @@
+name: Publish to NuGet
+
+on:
+  workflow_call:
+    inputs:
+      project-file:
+        description: "Path to the .csproj file to publish (relative to repo root)"
+        required: true
+        type: string
+
+      dotnet-version:
+        description: ".NET SDK version to use"
+        required: false
+        default: "10.x"
+        type: string
+
+      pack-output:
+        description: "Output directory for the .nupkg file"
+        required: false
+        default: "artifacts/package/release"
+        type: string
+
+      configuration:
+        description: "Build configuration"
+        required: false
+        default: "Release"
+        type: string
+
+    secrets:
+      NUGET_USER:
+        description: "NuGet.org username for OIDC authentication (not supported when calling from external repos)"
+        required: false
+      NUGET_API_KEY:
+        description: "NuGet.org API key (required when calling from external repos, as OIDC is not supported)"
+        required: false
+      CHECKOUT_TOKEN:
+        description: "Token for private repository checkout"
+        required: false
+
+jobs:
+  publish:
+    name: Build and Publish to NuGet
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate required secrets
+        id: validate-secrets
+        shell: bash
+        env:
+          NUGET_USER: ${{ secrets.NUGET_USER }}
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          if [ -z "$NUGET_USER" ] && [ -z "$NUGET_API_KEY" ]; then
+            echo "::error::Either NUGET_USER (for OIDC) or NUGET_API_KEY (for API key auth) secret is required but neither was provided."
+            echo "::error::Note: OIDC authentication (NUGET_USER) does not work when calling this workflow from external repositories."
+            echo "::error::If you're calling this workflow from a different repository, you must use NUGET_API_KEY instead."
+            exit 1
+          fi
+          # Prioritize API key over OIDC if both are provided, since OIDC doesn't work for external repos
+          if [ -n "$NUGET_API_KEY" ]; then
+            echo "✅ NUGET_API_KEY secret is configured. Using API key authentication."
+            echo "use-oidc=false" >> "$GITHUB_OUTPUT"
+          elif [ -n "$NUGET_USER" ]; then
+            echo "✅ NUGET_USER secret is configured. Using OIDC authentication."
+            echo "::warning::OIDC authentication does not work when calling this workflow from external repositories. If publishing fails with a 401 error, switch to using NUGET_API_KEY instead."
+            echo "use-oidc=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.CHECKOUT_TOKEN || github.token }}
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+
+      - name: Restore dependencies
+        run: dotnet restore "${{ inputs.project-file }}"
+
+      - name: Build
+        run: dotnet build "${{ inputs.project-file }}" --configuration ${{ inputs.configuration }} --no-restore
+
+      - name: Pack
+        run: dotnet pack "${{ inputs.project-file }}" --configuration ${{ inputs.configuration }} --no-restore --output "${{ inputs.pack-output }}"
+
+      - name: List packed artifacts
+        shell: bash
+        env:
+          PACK_OUTPUT: ${{ inputs.pack-output }}
+        run: |
+          echo "📦 Looking for packages in: $PACK_OUTPUT"
+          if [ -d "$PACK_OUTPUT" ]; then
+            echo "Contents of $PACK_OUTPUT:"
+            ls -la "$PACK_OUTPUT"
+            nupkg_count=$(find "$PACK_OUTPUT" -maxdepth 1 -name "*.nupkg" 2>/dev/null | wc -l)
+            echo "Found $nupkg_count .nupkg file(s)"
+            if [ "$nupkg_count" -eq 0 ]; then
+              echo "::error::No .nupkg files found in $PACK_OUTPUT. The pack step may have failed or produced no output."
+              exit 1
+            fi
+          else
+            echo "::error::Pack output directory '$PACK_OUTPUT' does not exist. The pack step may have failed."
+            exit 1
+          fi
+
+      - name: NuGet login (OIDC -> temp API key)
+        if: steps.validate-secrets.outputs.use-oidc == 'true'
+        uses: nuget/login@v1
+        id: nuget-login
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Push to NuGet (API Key)
+        if: ((github.event_name == 'release' && github.event.action == 'published') || github.event_name == 'workflow_dispatch') && steps.validate-secrets.outputs.use-oidc == 'false'
+        shell: bash
+        env:
+          PACK_OUTPUT: ${{ inputs.pack-output }}
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          pushed_count=0
+          for package in "$PACK_OUTPUT"/*.nupkg; do
+            if [ -f "$package" ]; then
+              echo "📤 Pushing: $package"
+              if dotnet nuget push "$package" \
+                --api-key "$NUGET_API_KEY" \
+                --source https://api.nuget.org/v3/index.json; then
+                echo "✅ Successfully pushed: $package"
+                pushed_count=$((pushed_count + 1))
+              else
+                echo "::error::Failed to push: $package"
+                exit 1
+              fi
+            fi
+          done
+          echo "📊 Total packages pushed: $pushed_count"
+
+      - name: Push to NuGet (OIDC)
+        if: github.event_name == 'release' && github.event.action == 'published' && steps.validate-secrets.outputs.use-oidc == 'true'
+        shell: bash
+        env:
+          PACK_OUTPUT: ${{ inputs.pack-output }}
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+        run: |
+          pushed_count=0
+          for package in "$PACK_OUTPUT"/*.nupkg; do
+            if [ -f "$package" ]; then
+              echo "📤 Pushing: $package"
+              if dotnet nuget push "$package" \
+                --api-key "$NUGET_API_KEY" \
+                --source https://api.nuget.org/v3/index.json; then
+                echo "✅ Successfully pushed: $package"
+                pushed_count=$((pushed_count + 1))
+              else
+                echo "::error::Failed to push: $package"
+                exit 1
+              fi
+            fi
+          done
+          echo "📊 Total packages pushed: $pushed_count"
