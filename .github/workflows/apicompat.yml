@@ -55,7 +55,7 @@ jobs:
       # Checks out the CALLER'S repository, not this reusable workflow's repo.
       - uses: actions/checkout@v6
 
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ inputs.dotnet_version }}
 
