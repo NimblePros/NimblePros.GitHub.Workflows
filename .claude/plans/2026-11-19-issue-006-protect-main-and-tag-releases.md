@@ -74,6 +74,9 @@ No unit/integration/e2e test projects exist in this repo (YAML only).
   --generate-notes`), which moves `v1` via the new workflow. That first run is the
   end-to-end check of the deploy key, environment and tag ruleset.
 - Add CI to this repo (actionlint on PRs) and make it a required status check on `main`.
+- Optional hardening from the second review: a CODEOWNERS entry for
+  `.github/workflows/release.yml` with `require_code_owner_review` in the main ruleset, and
+  a required reviewer on the `release` environment.
 
 ## Review notes
 
@@ -105,3 +108,10 @@ Findings from the independent review and what was done:
    and the push uses the deploy key.
 - Nits: README now explains Dependabot behavior per ref type, the release rules, and the
   repo protections. Merge methods were left at all three: no team preference recorded.
+
+Second review (same reviewer, after the fixes above): nothing significant. README now warns
+that tagging an unreviewed commit exposes the deploy key, that any write deploy key can bypass
+the tag ruleset, that only admins create release tags (write users can still publish a
+release for an existing tag, which is harmless), and not to create a release named `v1`.
+CODEOWNERS and an environment reviewer are left as optional follow-up: they add process
+beyond what the issue asked for.

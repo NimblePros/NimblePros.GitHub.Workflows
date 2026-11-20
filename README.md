@@ -163,7 +163,7 @@ jobs:
 For maintainers. The repository settings that keep callers safe:
 
 - **Protect main** ruleset: changes reach `main` only through a pull request with one approving review. No force pushes or deletion. Admins can bypass the review, but still only through a pull request.
-- **Protect version tags** ruleset: only repository admins and deploy keys can create, move or delete `v*` tags. So only admins can publish a release.
+- **Protect version tags** ruleset: only repository admins and deploy keys can create, move or delete `v*` tags. So only admins can create the tag for a new release. Any write deploy key can bypass this ruleset, so don't add other write deploy keys to this repository.
 - **Immutable releases** are on, so a published `vX.Y.Z` tag and its assets can't be changed.
 - The `release` environment holds `RELEASE_DEPLOY_KEY`, the private half of the write deploy key the workflow uses to move the major tag. The environment only accepts runs on `v*.*.*` tags, so other workflows can't read it. To rotate the key, add a new write deploy key, replace the secret, then delete the old key.
 - The default `GITHUB_TOKEN` is read-only, and GitHub Actions can't approve pull requests.
@@ -171,7 +171,7 @@ For maintainers. The repository settings that keep callers safe:
 To publish a release:
 
 1. Merge the changes to `main`.
-2. As a repository admin, publish a release whose tag is `vMAJOR.MINOR.PATCH` on a commit that is already on `main`. Bump the major version for any breaking change (see [Versioning](#versioning)). A suffix such as `-rc.1` is only for prereleases.
+2. As a repository admin, publish a release whose tag is `vMAJOR.MINOR.PATCH` on a commit that is already on `main`. This is a security requirement, not just a convention: the release run uses `release.yml` from the tagged commit and gets the deploy key, so tagging an unreviewed commit exposes the key. Never create a release named after a major tag such as `v1`: immutable releases would lock that tag so it could no longer move. Bump the major version for any breaking change (see [Versioning](#versioning)). A suffix such as `-rc.1` is only for prereleases.
 
    ```bash
    gh release create v1.2.0 --target main --generate-notes
