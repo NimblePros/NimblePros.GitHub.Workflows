@@ -4,6 +4,29 @@ This repo holds common GitHub Actions Workflows that we use in the repositories 
 
 This makes use of [GitHub's Reusable Workflows](https://docs.github.com/en/actions/sharing-automations/reusing-workflows).
 
+## Versioning
+
+These workflows run in your repository with your token, so reference a release, not `main`. `main` can change at any time.
+
+| Reference | What you get |
+|---|---|
+| `@v1` (recommended) | The latest `v1.x.y` release. Moves forward on every non-breaking release. |
+| `@v1.2.3` | Exactly that release. It never changes. |
+| `@<full commit SHA>` | Exactly that commit. The strictest option, if your policy requires pinning to a SHA. |
+
+Releases follow [Semantic Versioning](https://semver.org/). A new **major** version (`v2`) means a breaking change for callers, such as a removed or renamed input or secret, a new required input, or a change to the permissions the caller must grant. Read the [release notes](https://github.com/NimblePros/NimblePros.GitHub.Workflows/releases) before you move to a new major version.
+
+To have Dependabot keep your references up to date, enable the `github-actions` ecosystem in your repository's `.github/dependabot.yml`:
+
+```yaml
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+```
+
 ## Available Workflows
 
 In this section, we'll mention workflows and any details required for using them.
@@ -75,7 +98,7 @@ permissions:
 
 jobs:
   add-code-coverage-to-pr:
-    uses: NimblePros/NimblePros.GitHub.Workflows/.github/workflows/comment-on-pr.yml@main
+    uses: NimblePros/NimblePros.GitHub.Workflows/.github/workflows/comment-on-pr.yml@v1
     with:
       code-coverage-artifact-name: code-coverage-results
       code-coverage-artifact-path: code-coverage-results.md
@@ -92,7 +115,7 @@ Runs `dotnet format` against a solution or project. It can either check formatti
 ```yaml
 jobs:
   dotnet-format:
-    uses: NimblePros/NimblePros.GitHub.Workflows/.github/workflows/dotnet-format.yml@main
+    uses: NimblePros/NimblePros.GitHub.Workflows/.github/workflows/dotnet-format.yml@v1
     with:
       solution-or-project: ./YourSolution.sln
 ```
@@ -108,7 +131,7 @@ Builds, packs, and publishes a .NET project to NuGet.
 ```yaml
 jobs:
   publish:
-    uses: NimblePros/NimblePros.GitHub.Workflows/.github/workflows/dotnet-publish.yml@main
+    uses: NimblePros/NimblePros.GitHub.Workflows/.github/workflows/dotnet-publish.yml@v1
     with:
       project-file: ./src/YourProject/YourProject.csproj
     secrets:
@@ -126,7 +149,22 @@ Runs restore, build, test, and coverage reporting for a .NET solution or project
 ```yaml
 jobs:
   test-coverage:
-    uses: NimblePros/NimblePros.GitHub.Workflows/.github/workflows/dotnet-test-coverage.yml@main
+    uses: NimblePros/NimblePros.GitHub.Workflows/.github/workflows/dotnet-test-coverage.yml@v1
     with:
       solution-path: ./YourSolution.sln
 ```
+
+---
+
+## Releasing
+
+For maintainers. `main` is protected: changes land through a reviewed pull request.
+
+1. Merge the changes to `main`.
+2. Publish a release whose tag is `vMAJOR.MINOR.PATCH` and targets `main`. Bump the major version for any breaking change (see [Versioning](#versioning)).
+
+   ```bash
+   gh release create v1.2.0 --target main --generate-notes
+   ```
+
+3. The [Move Major Version Tag workflow](https://github.com/NimblePros/NimblePros.GitHub.Workflows/blob/main/.github/workflows/release.yml) then points the major tag (`v1`) at the release commit, so `@v1` callers get it. Prereleases don't move the major tag, and a tag that isn't `vMAJOR.MINOR.PATCH` fails the workflow without moving anything.
