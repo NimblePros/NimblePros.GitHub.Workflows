@@ -10,7 +10,7 @@
 #       permissions:
 #         contents: read
 #         pull-requests: write
-#       uses: NimblePros/NimblePros.GitHub.Workflows/.github/workflows/apicompat.yml@main
+#       uses: NimblePros/NimblePros.GitHub.Workflows/.github/workflows/apicompat.yml@v1
 #       with:
 #         package_id: Ardalis.GuardClauses
 #         project_path: ./src/GuardClauses/GuardClauses.csproj

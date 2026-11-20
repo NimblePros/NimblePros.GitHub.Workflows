@@ -1,0 +1,82 @@
+name: Move Major Version Tag
+
+# Runs in this repository only (it is not a reusable workflow). When a vMAJOR.MINOR.PATCH
+# release is published, it points the moving major tag (for example v1) at the same commit,
+# so callers that reference `@v1` pick up the release.
+#
+# `released` fires when a full release is published, or when a prerelease is promoted to a
+# full release. It never fires for prereleases or drafts.
+#
+# The "Protect version tags" ruleset blocks creating, moving and deleting v* tags for everyone
+# except repository admins and deploy keys. GITHUB_TOKEN can't bypass it, so the tag is pushed
+# with the write deploy key stored as RELEASE_DEPLOY_KEY in the `release` environment. That
+# environment only accepts runs on v*.*.* tags, which only admins can create, so a workflow on
+# an ordinary branch can't read the key.
+on:
+  release:
+    types: [released]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: move-major-tag
+  cancel-in-progress: false
+
+jobs:
+  move-major-tag:
+    runs-on: ubuntu-latest
+    # Guard in case the trigger is ever widened: prereleases never move the major tag.
+    if: ${{ !github.event.release.prerelease }}
+    environment: release
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+        with:
+          # Full history and all tags, for the ancestry and newest-release checks below.
+          fetch-depth: 0
+          # The tag push below authenticates with this key.
+          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
+          persist-credentials: true
+
+      - name: Move the major version tag
+        env:
+          # Passed through env, never interpolated into the script, so a crafted tag name
+          # can't inject shell commands.
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$RELEASE_TAG" =~ ^v([0-9]+)\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Release tag '$RELEASE_TAG' must look like vMAJOR.MINOR.PATCH (for example v1.2.0)."
+            exit 1
+          fi
+          major_tag="v${BASH_REMATCH[1]}"
+
+          # Resolve the release tag to its commit (works for lightweight and annotated tags).
+          commit=$(git rev-parse --verify "refs/tags/${RELEASE_TAG}^{commit}")
+
+          # Only reviewed code may reach callers: the release commit must be on the protected
+          # default branch.
+          if ! git merge-base --is-ancestor "$commit" "refs/remotes/origin/${DEFAULT_BRANCH}"; then
+            echo "::error::$RELEASE_TAG ($commit) is not on ${DEFAULT_BRANCH}. Release from a commit that has been merged to ${DEFAULT_BRANCH}."
+            exit 1
+          fi
+
+          # Never move the major tag backwards, for example when publishing a v1.2.1 hotfix
+          # after v1.3.0 is out. Only tags on the default branch count.
+          newest=$(git tag --list "${major_tag}.*" --merged "refs/remotes/origin/${DEFAULT_BRANCH}" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
+          if [[ "$newest" != "$RELEASE_TAG" ]]; then
+            echo "::notice::$RELEASE_TAG is older than $newest, so $major_tag stays where it is."
+            echo "Left $major_tag alone: $RELEASE_TAG is older than $newest." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag --force --annotate "$major_tag" "$commit" --message "Point $major_tag at $RELEASE_TAG"
+          git push --force origin "refs/tags/${major_tag}"
+
+          echo "Moved $major_tag to $RELEASE_TAG ($commit)." >> "$GITHUB_STEP_SUMMARY"
