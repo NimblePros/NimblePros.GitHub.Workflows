@@ -1,15 +1,35 @@
 name: Comment on the Pull Request
 
+# Call this from a workflow triggered by `workflow_run` on your build workflow. That event runs
+# in the context of the base repository with a read-write token, so fork PRs get a comment
+# without granting write access to the PR build itself.
+# See: https://securitylab.github.com/research/github-actions-preventing-pwn-requests/
 on:
   workflow_call:
     inputs:
       pr-number:
-        required: true
+        description: >-
+          PR number to comment on. Leave empty to read it from the artifact named by
+          pr-number-artifact-name. Either way it is checked before use.
+        required: false
         type: string
+        default: ''
+      pr-number-artifact-name:
+        description: Artifact holding the PR number, used when pr-number is empty.
+        required: false
+        type: string
+        default: 'pr-number'
+      pr-number-file:
+        description: File inside the PR number artifact that contains the number.
+        required: false
+        type: string
+        default: 'pr-number.txt'
       code-coverage-artifact-name:
+        description: Artifact holding the code coverage markdown, uploaded by the build.
         required: true
         type: string
       code-coverage-artifact-path:
+        description: Path of the markdown file to post, relative to the workspace after download.
         required: true
         type: string
 
@@ -17,20 +37,77 @@ jobs:
   comment:
     runs-on: ubuntu-latest
 
-    # Only comment on the PR if this is a PR event
-    if: ${{ github.event_name }} == 'pull_request'
+    # The caller must grant at least these. A reusable workflow can't raise the caller's token
+    # permissions, so a caller that grants less fails at startup with a clear error.
+    permissions:
+      actions: read
+      pull-requests: write
 
-    steps:   
-    - name: Get the code coverage results file
-      uses: dawidd6/action-download-artifact@v6
+    # Only comment for builds of a PR. In a reusable workflow, `github.event` is the caller's
+    # event, so this reads the `workflow_run` payload. A cancelled build (superseded by a newer
+    # push) has no artifacts to read.
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion != 'cancelled'
+
+    steps:
+      # Downloads come from the exact run that triggered the caller, never from another run of
+      # the same workflow. The artifacts were produced by untrusted PR code, so they are only
+      # read as data, never executed.
+    - name: Get the PR Number artifact
+      if: inputs.pr-number == ''
+      uses: actions/download-artifact@v8
       with:
-        workflow: ${{ github.event.workflow_run.workflow_id }}
-        workflow_conclusion: ""
+        name: ${{ inputs.pr-number-artifact-name }}
+        run-id: ${{ github.event.workflow_run.id }}
+        github-token: ${{ github.token }}
+
+      # The PR build writes the PR number, so a fork PR controls it. Accept the number only if
+      # it is numeric and that PR's head commit is the commit the build ran on. A mismatch also
+      # happens when a newer push lands before this runs; that push's own build will post the
+      # comment, so skip rather than fail.
+    - name: Read and verify the PR Number
+      id: pr
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPO: ${{ github.repository }}
+        RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        INPUT_PR_NUMBER: ${{ inputs.pr-number }}
+        PR_NUMBER_FILE: ${{ inputs.pr-number-file }}
+      run: |
+        if [ -n "$INPUT_PR_NUMBER" ]; then
+          PR_NUMBER="$INPUT_PR_NUMBER"
+        else
+          PR_NUMBER=$(cat "$PR_NUMBER_FILE")
+        fi
+        PR_NUMBER=$(echo "$PR_NUMBER" | tr -d '[:space:]')
+        if ! [[ "$PR_NUMBER" =~ ^[0-9]+$ ]]; then
+          echo "The PR number is not numeric" >&2
+          exit 1
+        fi
+        PR_HEAD_SHA=$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq .head.sha)
+        if [ "$PR_HEAD_SHA" != "$RUN_HEAD_SHA" ]; then
+          echo "::notice::PR #$PR_NUMBER head is $PR_HEAD_SHA, but the build ran on $RUN_HEAD_SHA. Skipping the coverage comment."
+          echo "verified=false" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        echo "Commenting on PR #$PR_NUMBER"
+        echo "number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+        echo "verified=true" >> "$GITHUB_OUTPUT"
+
+    - name: Get the code coverage results file
+      if: steps.pr.outputs.verified == 'true'
+      uses: actions/download-artifact@v8
+      with:
         name: ${{ inputs.code-coverage-artifact-name }}
+        run-id: ${{ github.event.workflow_run.id }}
+        github-token: ${{ github.token }}
 
     - name: Add Coverage PR Comment
-      uses: marocchino/sticky-pull-request-comment@v2
+      if: steps.pr.outputs.verified == 'true'
+      uses: marocchino/sticky-pull-request-comment@v3
       with:
-        number: ${{ inputs.pr-number }}
+        number: ${{ steps.pr.outputs.number }}
         recreate: true
         path: ${{ inputs.code-coverage-artifact-path }}
